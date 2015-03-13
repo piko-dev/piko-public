@@ -1,0 +1,32 @@
+Note: This code has been tested only on Ubuntu Linux 12.04.
+
+Prerequisites:
+	1) NVIDIA CUDA 7.0 (currently available as a Release Candidate)
+	2) LLVM and Clang version 3.2
+	3) gcc and g++ version 4.9 or newer
+	4) OpenGL
+
+Build pikoc:
+	1) Download LLVM and Clang version 3.2 from http://llvm.org/releases/download.html#3.2
+	2) Build LLVM and Clang using the instruction at http://llvm.org/docs/GettingStarted.html
+	3) cd <piko_repository>/pikoc
+	4) run './configure Linux' and edit pikocPaths.in so that the paths are correct for your 
+	   CUDA 7.0 instillation and LLVM install and source paths.
+	5) run 'make' to build pikoc
+
+Building and running the sample pipelines:
+	1) cd <piko_repository>/samples/<pipeline>
+	2) run 'make' to build the pipeline
+
+Troubleshooting:
+	1) Issues building sample pipelines:
+		 The Makefiles for the sample pipelines contain hardcoded paths to some of the 
+		 required tools (e.g. CUDA and g++).  You may need to edit these Makefiles so that
+		 the paths are correct for your system.
+	2) When running a pipeline, I get a CUDA_ERROR_OUT_OF_MEMORY error:
+	   In the file <piko_repository>/api/include/internal/datatypes.h, the #defined value for
+	   'MAX_NUM_PRIMS' controls the memory footprint of the pipeline. Try lowering this number
+	   so that the memory footprint stays within your GPUs available memory.
+	   Note: We have only tested a certain range of values for MAX_NUM_PRIMS, so artifacts
+	   may occur with other values.
+

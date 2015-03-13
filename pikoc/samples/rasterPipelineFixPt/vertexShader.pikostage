@@ -1,0 +1,113 @@
+#ifndef VERTEXSHADER_PIKOSTAGE
+#define VERTEXSHADER_PIKOSTAGE
+
+//#include "types.h"
+
+#include "piko/deviceFunctions.h"
+#include "piko/stage.h"
+#include "piko/math.h"
+#include "basicTypes/pikoTypes.h"
+#include "piko/atomics.h"
+#include "piko/locks.h"
+#include "piko/specialInstructions.h"
+
+#define VS_BINSIZE 32
+
+#include "basicTypes/rasterTypes.h"
+#include "rasterMacros.h"
+
+//template <bool bPreTransform>
+class VertexShaderStage : public Stage<VS_BINSIZE, VS_BINSIZE, 512, raster_wtri, raster_stri> {
+#ifdef __PIKOC_DEVICE__
+  public:
+    void emit(raster_stri, int);
+
+    inline void assignBin(raster_wtri p)
+    {
+      int bi = (p.id / (512)) % getNumBins();
+		  this->assignToBin(p, bi);
+	  }
+
+	  inline void schedule(int binID)
+    {
+		  specifySchedule(LOAD_BALANCE);
+	  }
+
+	  inline void process(raster_wtri p)
+    {
+      float W = (float)constState.screenSizeX;
+      float H = (float)constState.screenSizeY;
+      
+      raster_stri ps;
+      float maxZ, minZ;
+
+#ifdef VTX_PRETRANSFORM 
+        // vertices are already transformed
+        ps.x0 = (int)(p.worldPos0.x * 16.0f);
+        ps.y0 = (int)(p.worldPos0.y * 16.0f);
+        ps.z0 = (p.worldPos0.z);
+        ps.x1 = (int)(p.worldPos1.x * 16.0f);
+        ps.y1 = (int)(p.worldPos1.y * 16.0f);
+        ps.z1 = (p.worldPos1.z);
+        ps.x2 = (int)(p.worldPos2.x * 16.0f);
+        ps.y2 = (int)(p.worldPos2.y * 16.0f);
+        ps.z2 = (p.worldPos2.z);
+        ps.icol0 = p.icol0;
+        ps.icol1 = p.icol1;
+        ps.icol2 = p.icol2;
+#else
+        cvec4f screenPos;
+        float halfW = (float)W * 0.5f;
+        float halfH = (float)H * 0.5f;
+
+        vtxTransform(constState.viewProjMatrix, p.worldPos0, screenPos, halfW, halfH);
+        ps.x0 = (int)(screenPos.x * 16.0f);
+        ps.y0 = (int)(screenPos.y * 16.0f);
+        ps.z0 = screenPos.z;
+        //maxZ = minZ = -screenPos.w;
+
+        vtxTransform(constState.viewProjMatrix, p.worldPos1, screenPos, halfW, halfH);
+        ps.x1 = (int)(screenPos.x * 16.0f);
+        ps.y1 = (int)(screenPos.y * 16.0f);
+        ps.z1 = screenPos.z;
+        //maxZ = fmaxf(maxZ, -screenPos.w);
+        //minZ = fminf(minZ, -screenPos.w);
+
+        vtxTransform(constState.viewProjMatrix, p.worldPos2, screenPos, halfW, halfH);
+        ps.x2 = (int)(screenPos.x * 16.0f);
+        ps.y2 = (int)(screenPos.y * 16.0f);
+        ps.z2 = screenPos.z;
+        //maxZ = fmaxf(maxZ, -screenPos.w);
+        //minZ = fminf(minZ, -screenPos.w);
+#endif
+
+      // todo: frustum test before transform
+      if(isFrontFacingFixPt(ps) && isInsideFrustumFixPt(ps, minZ, maxZ, W*16, H*16))
+      {
+        boundingBoxFixPt bb;
+        computeBoundingBoxFixPt(ps, bb);
+        if(!isBBBetweenSamples(bb))
+        {
+  #ifdef GORAUD
+    #ifdef VTX_PRETRANSFORM 
+    #else
+            // cvec3f matcol   = gencvec3f(0.9000f, 0.9000f, 0.6000f);
+            // cvec3f lightvec = gencvec3f(0.5773f, 0.5773f, 0.5773f);
+
+            // ps.icol0 = piko::toABGR(gencvec3f(1.0f, 0.0f, 0.0f));//piko::toABGR(computeLighting(p.normal0, lightvec, matcol));
+            // ps.icol1 = piko::toABGR(gencvec3f(1.0f, 0.0f, 0.0f));//piko::toABGR(computeLighting(p.normal1, lightvec, matcol));
+            // ps.icol2 = piko::toABGR(gencvec3f(1.0f, 0.0f, 0.0f));//piko::toABGR(computeLighting(p.normal2, lightvec, matcol));
+    #endif
+  #else
+          ps.normal0 = p.normal0;
+          ps.normal1 = p.normal1;
+          ps.normal2 = p.normal2;
+  #endif
+          this->emit(ps,0);
+        }
+      }
+	  }
+#endif // __PIKOC_DEVICE__
+};
+
+#endif // VERTEXSHADER_PIKOSTAGE

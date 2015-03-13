@@ -1,0 +1,83 @@
+CFLAGS = -Wall -g #-E -v
+
+SRCDIR	= src
+INCDIR	= include
+OBJDIR	= obj
+BINDIR	= bin
+
+DEPS	= $(wildcard $(INCDIR)/*)
+FE_DEPS	= $(wildcard $(INCDIR)/Frontend/*)
+BE_DEPS	= $(wildcard $(INCDIR)/Backend/*)
+OBJS	= $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(wildcard $(SRCDIR)/*.cpp))
+FE_OBJS	= $(patsubst $(SRCDIR)/Frontend/%.cpp,$(OBJDIR)/%.o,$(wildcard $(SRCDIR)/Frontend/*.cpp))
+BE_OBJS	= $(patsubst $(SRCDIR)/Backend/%.cpp,$(OBJDIR)/%.o,$(wildcard $(SRCDIR)/Backend/*.cpp))
+
+NVVM_LIB = -lnvvm
+
+LLVM_BIN_PATH = $(LLVM_INSTALL_PATH)/bin
+LLVM_LIBS = asmparser bitreader bitwriter codegen core \
+						instrumentation ipo linker mc mcparser \
+						nvptx transformutils \
+						all-targets
+
+# Other LLVM libraries \
+analysis \
+asmparser \
+asmprinter \
+bitwriter \
+debuginfo \
+engine \
+executionengine \
+instcombine \
+interpreter \
+ipa \
+irreader \
+jit \
+objcarcopts \
+object \
+option \
+runtimedyld \
+scalaropts \
+selectiondag \
+support \
+tablegen \
+vectorize \
+
+LLVM_CONFIG_COMP = $(LLVM_BIN_PATH)/llvm-config --cxxflags
+LLVM_CONFIG_LINK = $(LLVM_BIN_PATH)/llvm-config --ldflags \
+                                        --libs $(LLVM_LIBS)
+CLANG_BUILD_FLAGS = -I$(LLVM_SRC_PATH)/tools/clang/include \
+                    -I$(LLVM_INSTALL_PATH)/include
+
+CLANGLIBS = \
+  -lclangFrontendTool -lclangFrontend -lclangDriver \
+  -lclangSerialization -lclangCodeGen -lclangParse \
+  -lclangSema -lclangStaticAnalyzerFrontend \
+  -lclangStaticAnalyzerCheckers -lclangStaticAnalyzerCore \
+  -lclangAnalysis -lclangARCMigrate \
+  -lclangEdit -lclangAST -lclangLex -lclangBasic \
+	-lclangTooling
+
+# Other Clang libraries
+#-lclangRewriteCore -lclangRewriteFrontend -lclangRewrite 
+
+all: dirs pikoc
+
+$(OBJDIR)/%.o: $(SRCDIR)/Frontend/%.cpp $(DEPS) $(FE_DEPS) $(BE_DEPS)
+	$(CXX) -std=gnu++11 -c -o $@ $< -I$(NVVM_PATH)/include -I$(INCDIR) $(CLANG_BUILD_FLAGS) `$(LLVM_CONFIG_COMP)`
+
+$(OBJDIR)/%.o: $(SRCDIR)/Backend/%.cpp $(DEPS) $(FE_DEPS) $(BE_DEPS)
+	$(CXX) -std=gnu++11 -c -o $@ $< -I$(NVVM_PATH)/include -I$(INCDIR) $(CLANG_BUILD_FLAGS) `$(LLVM_CONFIG_COMP)`
+
+$(OBJDIR)/%.o: $(SRCDIR)/%.cpp $(DEPS) $(FE_DEPS) $(BE_DEPS)
+	$(CXX) -std=gnu++11 -c -o $@ $< -I$(NVVM_PATH)/include -I$(INCDIR) $(CLANG_BUILD_FLAGS) `$(LLVM_CONFIG_COMP)`
+
+pikoc: $(OBJS) $(FE_OBJS) $(BE_OBJS)
+	$(CXX) -std=gnu++11 -o $(BINDIR)/$@ $^ -L$(NVVM_LIB_PATH) $(NVVM_LIB) $(CLANGLIBS) `$(LLVM_CONFIG_LINK)` $(LIBS)
+
+clean:
+	rm -f $(OBJDIR)/*.o $(BINDIR)/pikoc
+
+dirs:
+	mkdir -p $(BINDIR)
+	mkdir -p $(OBJDIR)
